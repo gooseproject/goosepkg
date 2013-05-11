@@ -26,135 +26,53 @@ class goosepkgClient(cliClient):
 
     def setup_goose_subparsers(self):
         """Register the goose specific targets"""
-        pass
+        self.register_clone()
+        self.register_mock_config()
 
     # Target registry goes here
-    def register_retire(self):
-        """Register the retire target"""
+    def register_mock_config(self):
+        """Disable Mock Config creation"""
+        pass
 
-        retire_parser = self.subparsers.add_parser('retire',
-                                              help='Retire a package',
-                                              description='This command will \
-                                              remove all files from the repo \
-                                              and leave a dead.package file.')
-        retire_parser.add_argument('-p', '--push',
-                                   default=False,
-                                   action='store_true',
-                                   help='Push changes to remote repository')
-        retire_parser.add_argument('msg',
-                                   nargs='?',
-                                   help='Message for retiring the package')
-        retire_parser.set_defaults(command=self.retire)
+    def register_clone(self):
+        """Register the clone target and co alias"""
 
-    def register_tagrequest(self):
-        """Register the tagrequest target"""
+        clone_parser = self.subparsers.add_parser('clone',
+                                         help = 'Clone and checkout a module',
+                                         description = 'This command will \
+                                         clone the named module from the \
+                                         configured repository base URL.  \
+                                         By default it will also checkout \
+                                         the master branch for your working \
+                                         copy.')
+        # provide a convenient way to get to a specific branch
+        clone_parser.add_argument('--branch', '-b',
+                                  help = 'Check out a specific branch')
+        # allow to clone without needing a account on the scm server
+        clone_parser.add_argument('--anonymous', '-a',
+                                  action = 'store_true',
+                                  help = 'Check out a module anonymously')
+        # store the module to be cloned
+        clone_parser.add_argument('module', nargs = 1,
+                                  help = 'Name of the module to clone')
+        clone_parser.set_defaults(command = self.clone)
 
-        tagrequest_parser = self.subparsers.add_parser('tag-request',
-                                          help='Submit current build nvr '
-                                          'as a releng tag request',
-                                          description='This command \
-                                          files a ticket with release \
-                                          engineering, usually for a \
-                                          buildroot override.  It will \
-                                          discover the build n-v-r \
-                                          automatically but can be \
-                                          overridden.')
-        tagrequest_parser.add_argument('--desc',
-                                       help='Description of tag request')
-        tagrequest_parser.add_argument('--build',
-                                       help='Override the build n-v-r')
-        tagrequest_parser.set_defaults(command=self.tagrequest)
-
-    def register_update(self):
-        update_parser = self.subparsers.add_parser('update',
-                                          help='Submit last build as an '
-                                          'update',
-                                          description='This will create a \
-                                          bodhi update request for the \
-                                          current package n-v-r.')
-        update_parser.set_defaults(command=self.update)
+        # Add an alias for historical reasons
+        co_parser = self.subparsers.add_parser('co', parents = [clone_parser],
+                                          conflict_handler = 'resolve',
+                                          help = 'Alias for clone',
+                                          description = 'This command will \
+                                          clone the named module from the \
+                                          configured repository base URL.  \
+                                          By default it will also checkout \
+                                          the master branch for your working \
+                                          copy.')
+        co_parser.set_defaults(command = self.clone)
 
     # Target functions go here
-    def retire(self):
-        try:
-            self.cmd.retire(self.args.msg)
-        except Exception, e:
-            self.log.error('Could not retire package: %s' % e)
-            sys.exit(1)
-        if self.args.push:
-            self.push()
-
-    def update(self):
-        template = """\
-[ %(nvr)s ]                                                                 
-
-# bugfix, security, enhancement, newpackage (required)
-type=
-
-# testing, stable                                                           
-request=testing
-
-# Bug numbers: 1234,9876
-bugs=%(bugs)s
-
-# Description of your update                                                
-notes=Here is where you give an explanation of your update.
-
-# Enable request automation based on the stable/unstable karma thresholds
-autokarma=True
-stable_karma=3
-unstable_karma=-3
-
-# Automatically close bugs when this marked as stable
-close_bugs=True
-
-# Suggest that users restart after update
-suggest_reboot=False
-"""
-
-        bodhi_args = {'nvr': self.cmd.nvr, 'bugs': ''}
-
-        # Extract bug numbers from the latest changelog entry
-        self.cmd.clog()
-        clog = file('clog').read()
-        bugs = re.findall(r'#([0-9]*)', clog)
-        if bugs:
-            bodhi_args['bugs'] = ','.join(bugs)
-
-        template = textwrap.dedent(template) % bodhi_args
-
-        # Calculate the hash of the unaltered template
-        orig_hash = hashlib.new('sha1')
-        orig_hash.update(template)
-        orig_hash = orig_hash.hexdigest()
-
-        # Write out the template
-        out = file('bodhi.template', 'w')
-        out.write(template)
-        out.close()
-
-        # Open the template in a text editor
-        editor = os.getenv('EDITOR', 'vi')
-        self.cmd._run_command([editor, 'bodhi.template'], shell=True)
-
-        # Check to see if we got a template written out.  Bail otherwise
-        if not os.path.isfile('bodhi.template'):
-            self.log.error('No bodhi update details saved!')
-            sys.exit(1)
-        # If the template was changed, submit it to bodhi
-        hash = self.cmd._hash_file('bodhi.template', 'sha1')
-        if hash != orig_hash:
-            try:
-                self.cmd.update('bodhi.template')
-            except Exception, e:
-                self.log.error('Could not generate update request: %s' % e)
-                sys.exit(1)
-        else:
-            self.log.info('Bodhi update aborted!')
-
-        # Clean up
-        os.unlink('bodhi.template')
-        os.unlink('clog')
+    def clone(self):
+        self.cmd.clone(self.args.module[0], branch=self.args.branch,
+                       anon=self.args.anonymous)
 
 if __name__ == '__main__':
     client = cliClient()

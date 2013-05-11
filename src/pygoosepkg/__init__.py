@@ -19,16 +19,19 @@ import platform
 
 class Commands(pyrpkg.Commands):
 
-    def __init__(self, path, lookaside, lookasidehash, lookaside_cgi,
+    def __init__(self, path, lookaside, lookasidehash, lookaside_command,
                  gitbaseurl, anongiturl, branchre, kojiconfig,
                  build_client, user=None, dist=None, target=None,
                  quiet=False):
         """Init the object and some configuration details."""
 
+        # setting lookaside_cgi value passed to None. GoOSe uses rsync to
+        # transmit packages up to the lookaside cache.
+
         # We are subclassing to set kojiconfig to none, so that we can
         # make it a property to potentially use a secondary config
         super(Commands, self).__init__(path, lookaside, lookasidehash,
-                                 lookaside_cgi, gitbaseurl, anongiturl,
+                                 None, gitbaseurl, anongiturl,
                                  branchre, kojiconfig, build_client, user,
                                  dist, target, quiet)
 
@@ -36,6 +39,7 @@ class Commands(pyrpkg.Commands):
         self.secondary_arch = {}
 
         # New properties
+        self._lookaside_command = lookaside_command
         self._kojiconfig = None
         self._cert_file = None
         self._ca_cert = None
@@ -116,13 +120,10 @@ class Commands(pyrpkg.Commands):
             self._distunset = 'rhel'
         # master
         elif re.match(r'master$', self.branch_merge):
-            self._distval = self._findmasterbranch()
-            self._distvar = 'goose'
-            self.dist = 'gl%s' % self._distval
-            self.mockconfig = 'goose-sketchy-%s' % self.localarch
-            self.override = None
-            self._distunset = 'rhel'
         # If we don't match one of the above, punt
+            raise pyrpkg.rpkgError('GoOSe does not use the master branch'
+                                   '\nPlease use \'goosepkg switch-branch\' or'
+                                   '\nPlease specify with --dist')
         else:
             raise pyrpkg.rpkgError('Could not find the dist from branch name '
                                    '%s\nPlease specify with --dist' %
@@ -147,9 +148,9 @@ class Commands(pyrpkg.Commands):
         """This creates the target attribute based on branch merge"""
 
         if self.branch_merge == 'master':
-            self._target = 'rawhide'
+            self._target = 'sketchy'
         else:
-            self._target = '%s-candidate' % self.branch_merge
+            self._target = '%s' % self.branch_merge
 
     #FIXME: need to load GoOSe certificates here.
     def load_user(self):
@@ -187,8 +188,7 @@ class Commands(pyrpkg.Commands):
         # Create a list of "gooses"
         gooses = []
 
-        # Create a regex to find branches that exactly match f##.  Should not
-        # catch branches such as gl6.0-updates
+        # Create a regex to find branches that exactly match gl#.#.
         branchre = 'gl\d\.\d$'
 
         # Find the repo refs
@@ -201,11 +201,14 @@ class Commands(pyrpkg.Commands):
                 if re.match(branchre, ref.name.split('/', 1)[1]):
                     # Add just the simple f## part to the list
                     gooses.append(ref.name.split('/')[1])
+
+        print("gooses: {0}".format(gooses))
+
         if gooses:
             # Sort the list
             gooses.sort()
             # Start with the last item, strip the f, add 1, return it.
-            return(int(gooses[-1].strip('f')) + 1)
+            return(int(gooses[-1].strip('gl')) + 1)
         else:
             # We may not have GoOSes.  Find out what sketchy target does.
             try:
