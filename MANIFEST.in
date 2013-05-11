@@ -1,0 +1,4 @@
+include COPYING
+include src/goosepkg.bash
+include src/goosepkg.conf
+include src/goosepkg_man_page.py
