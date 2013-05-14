@@ -26,14 +26,31 @@ class goosepkgClient(cliClient):
 
     def setup_goose_subparsers(self):
         """Register the goose specific targets"""
-        self.register_clone()
-        self.register_mock_config()
+        # these functions are getting disabled since goosepkg
+        # doesn't use them, even though rpkg apparently does.
 
-    # Target registry goes here
+        self.register_mock_config()
+        self.register_new()
+        self.register_tag()
+
+        # register updated/new functions
+        self.register_clone()
+        self.register_upload()
+
+    # Disable some registered commands from rpkg
     def register_mock_config(self):
         """Disable Mock Config creation"""
         pass
 
+    def register_new(self):
+        """Disable tracking since last tag"""
+        pass
+
+    def register_tag(self):
+        """Disable tagging with goosepkg"""
+        pass
+
+    # Target registry goes here
     def register_clone(self):
         """Register the clone target and co alias"""
 
