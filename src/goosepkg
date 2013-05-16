@@ -36,6 +36,7 @@ config = ConfigParser.SafeConfigParser()
 config.read(args.config)
 
 client = pygoosepkg.cli.goosepkgClient(config)
+
 client.do_imports(site='pygoosepkg')
 client.parse_cmdline()
 
@@ -51,6 +52,7 @@ if not client.args.path:
 # to stderr.  Normal operation will show anything INFO and above.
 # Quiet hides INFO, while Verbose exposes DEBUG.  In all cases WARN or
 # higher are exposed (via stderr).
+
 log = pyrpkg.log
 client.setupLogging(log)
 
