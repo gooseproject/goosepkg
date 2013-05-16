@@ -20,9 +20,43 @@ import hashlib
 
 
 class goosepkgClient(cliClient):
+
     def __init__(self, config, name='goosepkg'):
+
         super(goosepkgClient, self).__init__(config, name)
+
         self.setup_goose_subparsers()
+
+    def load_cmd(self):
+        """This sets up the cmd object"""
+
+        # Load up the library based on exe name
+        site = os.path.basename(sys.argv[0])
+
+        # Set target if we got it as an option
+        target = None
+        if hasattr(self.args, 'target') and self.args.target:
+            target = self.args.target
+
+        # load items from the config file
+        items = dict(self.config.items(site, raw=True))
+
+        # Create the cmd object
+        self._cmd = self.site.Commands(self.args.path,
+                                       items['lookaside'],
+                                       items['lookasidehash'],
+                                       items['lookaside_host'],
+                                       items['lookaside_user'],
+                                       items['lookaside_remote_dir'],
+                                       items['gitbaseurl'],
+                                       items['anongiturl'],
+                                       items['branchre'],
+                                       items['kojiconfig'],
+                                       items['build_client'],
+                                       user=self.args.user,
+                                       dist=self.args.dist,
+                                       target=target,
+                                       quiet=self.args.q)
 
     def setup_goose_subparsers(self):
         """Register the goose specific targets"""
@@ -35,7 +69,6 @@ class goosepkgClient(cliClient):
 
         # register updated/new functions
         self.register_clone()
-        self.register_upload()
 
     # Disable some registered commands from rpkg
     def register_mock_config(self):
