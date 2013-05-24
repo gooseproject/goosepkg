@@ -301,7 +301,7 @@ class Commands(pyrpkg.Commands):
             if not os.path.isfile(file):
                 raise Exception('Path does not exist or is '
                                 'not a file: %s' % file)
-        #self.cmd.upload(self.args.files, replace=self.args.replace)
+        self.cmd.upload(self.args.files, replace=self.args.replace)
         self.log.info("Source upload succeeded. Don't forget to commit the "
                       "sources file")
 
