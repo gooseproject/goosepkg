@@ -341,6 +341,44 @@ class Commands(pyrpkg.Commands):
 #        cmd.append(self.lookaside_cgi)
         self._run_command(cmd)
 
+    def sources(self, outdir=None):
+        """Download source files"""
+
+        try:
+            archives = open(os.path.join(self.path, 'sources'),
+                            'r').readlines()
+        except IOError, e:
+            raise rpkgError('%s is not a valid repo: %s' % (self.path, e))
+        # Default to putting the files where the module is
+        if not outdir:
+            outdir = self.path
+        for archive in archives:
+            try:
+                # This strip / split is kind a ugly, but checksums shouldn't have
+                # two spaces in them.  sources file might need more structure in the
+                # future
+                csum, file = archive.strip().split('  ', 1)
+            except ValueError:
+                raise rpkgError('Malformed sources file.')
+            # See if we already have a valid copy downloaded
+            outfile = os.path.join(outdir, file)
+            if os.path.exists(outfile):
+                if self._verify_file(outfile, csum, self.lookasidehash):
+                    continue
+            self.log.info("Downloading %s" % (file))
+            url = '%s/%s/%s/%s' % (self.lookaside, self.module_name,
+                                      csum, file.replace(' ', '%20'))
+
+            command = ['curl', '-H', 'Pragma:', '-o', outfile, '-R', '-S', '--fail']
+            if self.quiet:
+                command.append('-s')
+            command.append(url)
+            self._run_command(command)
+            if not self._verify_file(outfile, csum, self.lookasidehash):
+                raise rpkgError('%s failed checksum' % file)
+        return
+
+
     #TODO: write a test using ssh to verify the file exists or not
     def file_exists(self, pkg_name, filename, md5sum):
         """
