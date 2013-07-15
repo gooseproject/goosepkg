@@ -120,7 +120,7 @@ class Commands(pyrpkg.Commands):
 
         # We only match the top level branch name exactly.
         # Anything else is too dangerous and --dist should be used
-        if re.match(r'gl\d\.\d$', self.branch_merge):
+        if re.match(r'gl\d\.\d.*$', self.branch_merge):
             self._distval = self.branch_merge.split('gl')[1]
             self._distvar = 'goose'
             self.dist = 'gl%s' % self._distval
@@ -130,11 +130,11 @@ class Commands(pyrpkg.Commands):
         # master
         elif re.match(r'master$', self.branch_merge):
         # If we don't match one of the above, punt
-            raise pyrpkg.goosepkgError('GoOSe does not use the master branch'
+            raise goosepkgError('GoOSe does not use the master branch'
                                    '\nPlease use \'goosepkg switch-branch\' or'
                                    '\nPlease specify with --dist')
         else:
-            raise pyrpkg.goosepkgError('Could not find the dist from branch name '
+            raise goosepkgError('Could not find the dist from branch name '
                                    '%s\nPlease specify with --dist' %
                                    self.branch_merge)
         self._rpmdefines = ["--define '_sourcedir %s'" % self.path,
@@ -225,7 +225,7 @@ class Commands(pyrpkg.Commands):
                                                               'sketchy')
             except:
                 # We couldn't hit koji, bail.
-                raise pyrpkg.goosepkgError('Unable to query koji to find sketchy \
+                raise goosepkgError('Unable to query koji to find sketchy \
                                        target')
             desttag = rawhidetarget['dest_tag_name']
             return desttag.replace('f', '')
@@ -325,13 +325,16 @@ class Commands(pyrpkg.Commands):
         input.close()
         return sum.hexdigest()
 
-    def _do_rsync(self, file_hash, file):
+    def _do_rsync(self, file_hash, filename):
         """Use curl manually to upload a file"""
 
-        cmd = ["/usr/bin/rsync", "--progress", "-loDtRz", "-e", "ssh", file,
+        cmd = ["/usr/bin/rsync", "--progress", "-loDtRz", "-e", "ssh",
+              os.path.basename(filename),
               "{0}@{1}:{2}/{3}/{4}/".format(self.lookaside_user,
               self.lookaside_host, self.lookaside_remote_dir,
               self.module_name, file_hash)]
+
+        actual_dir = os.path.abspath(os.path.dirname(filename))
 
 #        cmd = ['curl', '--fail', '-o', '/dev/null', '--show-error',
 #        '--progress-bar', '-F', 'name=%s' % self.module_name, '-F',
@@ -339,7 +342,7 @@ class Commands(pyrpkg.Commands):
 #        if self.quiet:
 #            cmd.append('-s')
 #        cmd.append(self.lookaside_cgi)
-        self._run_command(cmd)
+        self._run_command(cmd, cwd=actual_dir)
 
     def sources(self, outdir=None):
         """Download source files"""
@@ -418,13 +421,13 @@ class Commands(pyrpkg.Commands):
 #            return True
 #        if output == "Missing":
 
-        return False
+#        return False
 
         # Something unexpected happened, will trigger if the lookaside URL
         # cannot be reached, the package named does not exist, and probably
         # some other scenarios as well.
-        raise goosepkgError("Error checking for %s at: %s" %
-                (filename, self.lookaside_cgi))
+        #raise goosepkgError("Error checking for %s at: %s" %
+        #        (filename, self.lookaside_cgi))
 
 
     def upload(self, files, replace=False):
@@ -453,12 +456,15 @@ class Commands(pyrpkg.Commands):
             file_hash = self._hash_file(f, self.lookasidehash)
             self.log.info("Uploading: %s  %s" % (file_hash, f))
             file_basename = os.path.basename(f)
+
             if not "%s  %s\n" % (file_hash, file_basename) in sources:
                 sources_file.write("%s  %s\n" % (file_hash, file_basename))
+
 
             # Add this file to .gitignore if it's not already there:
             if not gitignore.match(file_basename):
                 gitignore.add('/%s' % file_basename)
+
 
             if self.file_exists(self.module_name, file_basename, file_hash):
                 # Already uploaded, skip it:
@@ -472,6 +478,7 @@ class Commands(pyrpkg.Commands):
                 # directly.
                 self._do_rsync(file_hash, f)
                 uploaded.append(file_basename)
+
 
         sources_file.close()
 
